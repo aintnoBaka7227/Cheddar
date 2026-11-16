@@ -61,16 +61,19 @@ export async function init() {
     async function click() {
         sniff(head);
         meow();
-        sessionCount += 1;
+        sessionCount = readSessionCount() + 1;
         sessionEl.textContent = String(sessionCount);
         writeSessionCount(sessionCount);
         globalCount += 1;
         globalEl.textContent = String(globalCount);
         try {
             const res = await fetch('/api/counts/global/increment', { method: 'POST' });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
             globalCount = Math.max(globalCount, (await res.json()).count);
             globalEl.textContent = String(globalCount);
         } catch (e) {
+            globalCount -= 1;
+            globalEl.textContent = String(globalCount);
             console.warn('Increment failed', e);
         }
     }
@@ -83,6 +86,11 @@ export async function init() {
             e.preventDefault();
             click();
         }
+    });
+    // Assistive tech can activate the button with a bare click event (detail 0). Pointer clicks
+    // are already handled on pointerdown, and Enter/Space are prevented above.
+    button.addEventListener('click', e => {
+        if (e.detail === 0) click();
     });
 
     await Promise.all([

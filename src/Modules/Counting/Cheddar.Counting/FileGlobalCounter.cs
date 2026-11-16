@@ -42,21 +42,34 @@ public sealed class FileGlobalCounter : IGlobalCounter
     private async Task<long> LoadAsync(CancellationToken ct)
     {
         if (_count is { } cached) return cached;
+        _count = await ReadFileAsync(ct);
+        return _count.Value;
+    }
 
-        long loaded = 0;
+    private async Task<long> ReadFileAsync(CancellationToken ct)
+    {
+        string text;
         try
         {
-            await using var stream = File.OpenRead(_path);
-            loaded = await JsonSerializer.DeserializeAsync<long>(stream, cancellationToken: ct);
-            if (loaded < 0) loaded = 0;
+            text = await File.ReadAllTextAsync(_path, ct);
         }
-        catch (Exception e) when (e is IOException or JsonException or UnauthorizedAccessException)
+        catch (Exception e) when (e is FileNotFoundException or DirectoryNotFoundException)
         {
-            // Missing or corrupt file: start over rather than refuse to serve clicks.
+            return 0;
         }
 
-        _count = loaded;
-        return loaded;
+        try
+        {
+            var count = JsonSerializer.Deserialize<long>(text);
+            if (count >= 0) return count;
+        }
+        catch (JsonException)
+        {
+        }
+
+        // The total must never silently reset, so an unreadable file is kept for recovery, not overwritten.
+        File.Move(_path, $"{_path}.corrupt-{DateTime.UtcNow:yyyyMMddHHmmss}", overwrite: true);
+        return 0;
     }
 
     private async Task SaveAsync(long value, CancellationToken ct)

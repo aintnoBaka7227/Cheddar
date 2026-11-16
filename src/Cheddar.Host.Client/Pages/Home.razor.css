@@ -44,8 +44,8 @@ h1 {
     inset: 0;
     pointer-events: none;
     opacity: 0;
-    -webkit-mask-image: radial-gradient(ellipse 32% 26% at 52.5% 27%, #000 72%, transparent 100%);
-    mask-image: radial-gradient(ellipse 32% 26% at 52.5% 27%, #000 72%, transparent 100%);
+    -webkit-mask-image: radial-gradient(ellipse 33% 24% at 52.5% 29.5%, #000 85%, transparent 100%);
+    mask-image: radial-gradient(ellipse 33% 24% at 52.5% 29.5%, #000 85%, transparent 100%);
 }
 
 .head img {

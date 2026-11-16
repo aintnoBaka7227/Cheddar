@@ -48,7 +48,7 @@ public sealed class GlobalCounterTests : IDisposable
     [InlineData("")]
     [InlineData("{\"count\": 5}")]
     [InlineData("-7")]
-    public async Task Corrupt_file_starts_at_zero_and_recovers(string contents)
+    public async Task Corrupt_file_is_kept_aside_and_counting_restarts(string contents)
     {
         Directory.CreateDirectory(_dir);
         await File.WriteAllTextAsync(FilePath, contents);
@@ -57,5 +57,8 @@ public sealed class GlobalCounterTests : IDisposable
         Assert.Equal(0, await counter.GetAsync());
         Assert.Equal(1, await counter.IncrementAsync());
         Assert.Equal(1, await new FileGlobalCounter(FilePath).GetAsync());
+
+        var kept = Assert.Single(Directory.GetFiles(_dir, "global-count.json.corrupt-*"));
+        Assert.Equal(contents, await File.ReadAllTextAsync(kept));
     }
 }
