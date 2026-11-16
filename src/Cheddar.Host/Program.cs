@@ -28,17 +28,6 @@ app.UseStaticFiles(new StaticFileOptions
     ContentTypeProvider = contentTypes,
 });
 
-// Razor component endpoints only answer GET, so HEAD / would 404 for link checkers and probes.
-// Rewrites before UseRouting so the GET endpoint matches.
-app.Use((context, next) =>
-{
-    if (HttpMethods.IsHead(context.Request.Method) && context.Request.Path == "/")
-    {
-        context.Request.Method = HttpMethods.Get;
-    }
-    return next();
-});
-
 app.UseRouting();
 app.UseAntiforgery();
 

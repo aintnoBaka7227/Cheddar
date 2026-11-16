@@ -10,7 +10,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Cheddar.Host.Client\Cheddar.Host.Client.csproj" />
     <ProjectReference Include="..\Modules\Counting\Cheddar.Counting\Cheddar.Counting.csproj" />
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="10.0.9" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="10.0.15" />
   </ItemGroup>
 
 </Project>
