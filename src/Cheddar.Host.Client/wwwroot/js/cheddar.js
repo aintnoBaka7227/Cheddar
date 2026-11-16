@@ -4,6 +4,8 @@ const ACTIVATION_KEYS = new Set(['Enter', ' ']);
 
 let audio;
 let meowBuffer;
+let meowStart = 0;
+let meowGain = 1;
 let sessionCount = 0;
 let globalCount = 0;
 
@@ -29,8 +31,27 @@ function meow() {
     if (audio.state === 'suspended') audio.resume();
     const source = audio.createBufferSource();
     source.buffer = meowBuffer;
-    source.connect(audio.destination);
-    source.start();
+    const gain = audio.createGain();
+    gain.gain.value = meowGain;
+    source.connect(gain).connect(audio.destination);
+    source.start(0, meowStart);
+}
+
+// The recording is mostly near-silence with a quiet meow near its end, so play from just
+// before the first loud sample and scale the peak to near full volume.
+function measureMeow(buffer) {
+    let peak = 0;
+    for (let c = 0; c < buffer.numberOfChannels; c++) {
+        for (const v of buffer.getChannelData(c)) peak = Math.max(peak, Math.abs(v));
+    }
+    if (peak === 0) return;
+    let onset = buffer.length;
+    for (let c = 0; c < buffer.numberOfChannels; c++) {
+        const i = buffer.getChannelData(c).findIndex(v => Math.abs(v) >= peak / 4);
+        if (i >= 0) onset = Math.min(onset, i);
+    }
+    meowStart = Math.max(0, onset / buffer.sampleRate - 0.05);
+    meowGain = Math.min(0.9 / peak, 40);
 }
 
 async function loadMeow() {
@@ -38,6 +59,7 @@ async function loadMeow() {
         audio = new (window.AudioContext || window.webkitAudioContext)();
         const bytes = await (await fetch(MEOW_URL)).arrayBuffer();
         meowBuffer = await audio.decodeAudioData(bytes);
+        measureMeow(meowBuffer);
     } catch (e) {
         console.warn('Meow unavailable', e);
     }
