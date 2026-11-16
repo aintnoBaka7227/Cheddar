@@ -1,5 +1,6 @@
 const SESSION_COOKIE = 'cheddar_session';
 const MEOW_URL = '/assets/Augustine%20St.m4a';
+const ACTIVATION_KEYS = new Set(['Enter', ' ']);
 
 let audio;
 let meowBuffer;
@@ -72,25 +73,37 @@ export async function init() {
             globalCount = Math.max(globalCount, (await res.json()).count);
             globalEl.textContent = String(globalCount);
         } catch (e) {
-            globalCount -= 1;
-            globalEl.textContent = String(globalCount);
             console.warn('Increment failed', e);
+            try {
+                globalCount = await loadGlobalCount();
+            } catch {
+                globalCount -= 1;
+            }
+            globalEl.textContent = String(globalCount);
         }
     }
 
     button.addEventListener('pointerdown', e => {
         if (e.button === 0) click();
     });
+    // A key press sniffs once on keydown. Its own default activation is suppressed on every
+    // keydown (auto-repeat included) and keyup, and any click a browser still sends for that
+    // key is ignored, so holding a key never auto-clicks into the shared total.
+    let keyActivation = false;
     button.addEventListener('keydown', e => {
-        if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) {
-            e.preventDefault();
-            click();
-        }
+        if (!ACTIVATION_KEYS.has(e.key)) return;
+        e.preventDefault();
+        keyActivation = true;
+        if (!e.repeat) click();
     });
-    // Assistive tech can activate the button with a bare click event (detail 0). Pointer clicks
-    // are already handled on pointerdown, and Enter/Space are prevented above.
+    button.addEventListener('keyup', e => {
+        if (!ACTIVATION_KEYS.has(e.key)) return;
+        e.preventDefault();
+        setTimeout(() => { keyActivation = false; });
+    });
+    // Assistive tech can activate the button with a bare click event (detail 0).
     button.addEventListener('click', e => {
-        if (e.detail === 0) click();
+        if (e.detail === 0 && !keyActivation) click();
     });
 
     await Promise.all([

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Cheddar.Counting;
 
@@ -10,7 +11,7 @@ public sealed record CountResponse(long Count);
 public static class CountingExtensions
 {
     public static IServiceCollection AddCounting(this IServiceCollection services, string filePath) =>
-        services.AddSingleton<IGlobalCounter>(new FileGlobalCounter(filePath));
+        services.AddSingleton<IGlobalCounter>(sp => new FileGlobalCounter(filePath, sp.GetRequiredService<ILogger<FileGlobalCounter>>()));
 
     public static IEndpointRouteBuilder MapCountingEndpoints(this IEndpointRouteBuilder routes)
     {

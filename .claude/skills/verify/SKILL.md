@@ -52,4 +52,4 @@ What each check proves is in the feature files. The sniff is proven by a real mo
 
 ## Cleanup
 
-Kill the host by the PID you noted (`kill <pid>`), then confirm `lsof -ti tcp:5080` prints nothing. The driver closes the Chrome instances it started and deletes their temp profiles. Keep `.verify-evidence/` (gitignored); it is the proof.
+Kill the host by the PID you noted (`kill <pid>`), then confirm `lsof -ti tcp:5080` prints nothing. The driver quits the Chrome instances it started and deletes their temp profile. Keep `.verify-evidence/` (gitignored); it is the proof.

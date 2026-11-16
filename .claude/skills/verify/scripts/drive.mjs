@@ -20,8 +20,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const results = [];
 const check = (name, ok, detail) => { results.push({ name, ok, detail }); console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${detail === undefined ? '' : ` ${JSON.stringify(detail)}`}`); };
 
-async function openBrowser() {
-  const profile = await mkdtemp(join(tmpdir(), 'cheddar-verify-'));
+async function openBrowser(profile) {
   const proc = spawn(CHROME, ['--headless=new', `--remote-debugging-port=${args.port}`, `--user-data-dir=${profile}`, '--autoplay-policy=no-user-gesture-required', 'about:blank'], { stdio: 'ignore' });
   let targets;
   for (let i = 0; i < 100 && !targets; i++) {
@@ -32,10 +31,13 @@ async function openBrowser() {
   await new Promise((r, j) => { ws.addEventListener('open', r, { once: true }); ws.addEventListener('error', j, { once: true }); });
   let id = 0;
   const pending = new Map();
+  const listeners = new Map();
   ws.addEventListener('message', (e) => {
     const m = JSON.parse(e.data);
     if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); }
+    if (m.method) listeners.get(m.method)?.(m.params);
   });
+  const on = (method, fn) => listeners.set(method, fn);
   const send = (method, params = {}) => new Promise((ok, fail) => {
     const n = ++id;
     pending.set(n, (m) => (m.error ? fail(new Error(`${method}: ${m.error.message}`)) : ok(m.result)));
@@ -53,8 +55,17 @@ async function openBrowser() {
     AudioBufferSourceNode.prototype.start = function (...a) { window.__meowStarts++; return start.apply(this, a); };
   ` });
   await send('Emulation.setDeviceMetricsOverride', { width: 480, height: 860, deviceScaleFactor: 1, mobile: false });
-  const close = async () => { ws.close(); proc.kill(); await sleep(300); await rm(profile, { recursive: true, force: true }); };
-  return { send, evaluate, close };
+  // Browser.close quits Chrome the way a user does, so it writes persistent cookies to the
+  // profile and drops session cookies. A kill would lose both and hide the difference.
+  const close = async () => {
+    const exited = new Promise((r) => proc.once('exit', r));
+    await send('Browser.close').catch(() => {});
+    const timer = setTimeout(() => proc.kill(), 5000);
+    await exited;
+    clearTimeout(timer);
+    ws.close();
+  };
+  return { send, evaluate, on, close };
 }
 
 const SEL = { cat: 'button.cheddar', session: '#session-count', global: '#global-count' };
@@ -80,7 +91,15 @@ async function shot(b, name) {
   return `data:image/png;base64,${data}`;
 }
 
-const b = await openBrowser();
+async function key(b, k, { repeats = 0 } = {}) {
+  const spec = k === 'Enter' ? { key: 'Enter', code: 'Enter', text: '\r', windowsVirtualKeyCode: 13 } : { key: ' ', code: 'Space', text: ' ', windowsVirtualKeyCode: 32 };
+  await b.send('Input.dispatchKeyEvent', { type: 'keyDown', ...spec });
+  for (let i = 0; i < repeats; i++) await b.send('Input.dispatchKeyEvent', { type: 'keyDown', autoRepeat: true, ...spec });
+  await b.send('Input.dispatchKeyEvent', { type: 'keyUp', key: spec.key, code: spec.code, windowsVirtualKeyCode: spec.windowsVirtualKeyCode });
+}
+
+const profile = await mkdtemp(join(tmpdir(), 'cheddar-verify-'));
+const b = await openBrowser(profile);
 try {
   await load(b);
   const fit = await b.evaluate(`(() => {
@@ -167,21 +186,53 @@ try {
   check('session count survives a reload', reloaded.session === after.session, reloaded);
   check('all-time count survives a reload', reloaded.global >= after.global, reloaded);
 
+  await b.evaluate(`document.querySelector('${SEL.cat}').focus()`);
+  let k0 = await counts(b);
+  await key(b, 'Enter', { repeats: 3 });
+  await sleep(300);
+  let k1 = await counts(b);
+  check('holding Enter (1 press + 3 auto-repeats) counts once', k1.session === k0.session + 1, { before: k0.session, after: k1.session });
+  await key(b, ' ', { repeats: 3 });
+  await sleep(300);
+  let k2 = await counts(b);
+  check('holding Space (1 press + 3 auto-repeats) counts once', k2.session === k1.session + 1, { before: k1.session, after: k2.session });
+
+  await b.evaluate(`document.querySelector('${SEL.cat}').click()`);
+  await sleep(300);
+  const at = await counts(b);
+  check('a bare click event, as assistive tech sends, counts once', at.session === k2.session + 1, { before: k2.session, after: at.session });
+
+  await b.evaluate(`document.cookie = 'cheddar_session=${at.session + 10}; path=/; SameSite=Lax'`);
+  await click(b);
+  await sleep(300);
+  const tabs = await counts(b);
+  check('a click adds to session clicks another tab wrote to the cookie', tabs.session === at.session + 11, { otherTabWrote: at.session + 10, after: tabs.session });
+
+  await b.send('Fetch.enable', { patterns: [{ urlPattern: '*/api/counts/global/increment' }] });
+  b.on('Fetch.requestPaused', ({ requestId }) => b.send('Fetch.failRequest', { requestId, errorReason: 'Failed' }));
+  await click(b);
+  await sleep(600);
+  await b.send('Fetch.disable');
+  const shownAfterFail = (await counts(b)).global;
+  const server = await b.evaluate(`fetch('/api/counts/global').then((r) => r.json()).then((j) => j.count)`);
+  check('a failed increment shows the server total, not a phantom click', shownAfterFail === server, { shown: shownAfterFail, server });
+
   const meow = await b.evaluate(`fetch('/assets/Augustine%20St.m4a').then((r) => r.arrayBuffer()).then((x) => new AudioContext().decodeAudioData(x)).then((a) => a.duration)`);
   check('meow audio decodes', meow > 0, { seconds: +meow.toFixed(2) });
   await shot(b, 'after-clicks');
   await b.close();
 
-  const fresh = await openBrowser();
+  const fresh = await openBrowser(profile);
   await load(fresh);
   const newSession = await counts(fresh);
-  check('a new browser session starts the session count at 0', newSession.session === 0, newSession);
+  check('quitting and relaunching Chrome on the same profile resets the session count to 0', newSession.session === 0, newSession);
   check('the all-time count carries into a new browser session', newSession.global >= reloaded.global, newSession);
   await fresh.close();
 } catch (e) {
   check('driver ran to completion', false, String(e.message ?? e));
   await b.close().catch(() => {});
 }
+await rm(profile, { recursive: true, force: true });
 await writeFile(join(OUT, 'results.json'), JSON.stringify(results, null, 2));
 const failed = results.filter((r) => !r.ok).length;
 console.log(`${results.length - failed}/${results.length} checks passed. Evidence in ${OUT}`);
