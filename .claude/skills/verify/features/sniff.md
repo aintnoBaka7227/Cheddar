@@ -18,5 +18,5 @@ The driver presses the mouse at the button center, pauses all animations at 100m
 
 ## Gotchas
 
-- The oval in the driver mirrors the CSS mask in `src/Cheddar.Host.Client/Pages/Home.razor.css`. Change both together.
+- The driver reads the oval from the computed mask, so changing the CSS needs no driver change. It does need a new reference image: approve `mid-sniff.png` by eye, then rerun with `--update-reference`.
 - Images in the button need `inset: 0`. Without it they sit at their static position and the frame shows a cropped corner. The frame-fit check catches this.

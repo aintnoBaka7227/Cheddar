@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { writeFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
@@ -9,10 +9,12 @@ const { values: args } = parseArgs({
     url: { type: 'string', default: 'http://localhost:5080/' },
     out: { type: 'string', default: '.verify-evidence' },
     port: { type: 'string', default: '9333' },
+    'update-reference': { type: 'boolean', default: false },
   },
 });
 const OUT = resolve(args.out);
 await mkdir(OUT, { recursive: true });
+const REFERENCE = new URL('../reference/mid-sniff-frame.png', import.meta.url).pathname;
 const CHROME = process.env.CHROME ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const results = [];
@@ -45,6 +47,11 @@ async function openBrowser() {
     return r.result.value;
   };
   await send('Page.enable');
+  await send('Page.addScriptToEvaluateOnNewDocument', { source: `
+    window.__meowStarts = 0;
+    const start = AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start = function (...a) { window.__meowStarts++; return start.apply(this, a); };
+  ` });
   await send('Emulation.setDeviceMetricsOverride', { width: 480, height: 860, deviceScaleFactor: 1, mobile: false });
   const close = async () => { ws.close(); proc.kill(); await sleep(300); await rm(profile, { recursive: true, force: true }); };
   return { send, evaluate, close };
@@ -85,17 +92,30 @@ try {
   check('the normal photo is loaded and fills the cat frame exactly', fit.loaded && fit.offset < 1, fit);
   const atRest = await shot(b, 'at-rest');
   await click(b);
+  const timing = await b.evaluate(`(() => {
+    const a = document.querySelector('.head').getAnimations();
+    return { running: a.length, durationMs: a.length ? a[0].effect.getTiming().duration : null };
+  })()`);
+  check('a click starts one sniff animation lasting at most 300ms', timing.running === 1 && timing.durationMs > 0 && timing.durationMs <= 300, timing);
   await b.evaluate(`document.getAnimations().forEach((a) => { a.pause(); a.currentTime = 100; })`);
   const midSniff = await shot(b, 'mid-sniff');
-  await b.evaluate(`document.getAnimations().forEach((a) => a.finish())`);
+  const frame = await b.evaluate(`(() => { const r = document.querySelector('${SEL.cat}').getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height, scale: 1 }; })()`);
+  const { data: frameData } = await b.send('Page.captureScreenshot', { format: 'png', clip: frame });
+  await b.evaluate(`document.getAnimations().forEach((a) => a.play())`);
+  await sleep(400);
+  const settled = await b.evaluate(`({ opacity: getComputedStyle(document.querySelector('.head')).opacity, running: document.getAnimations().length })`);
+  check('the sniff ends on its own in real time (head layer hidden 400ms later)', settled.opacity === '0' && settled.running === 0, settled);
 
   const diff = await b.evaluate(`(async () => {
     const r = document.querySelector('${SEL.cat}').getBoundingClientRect();
+    const m = getComputedStyle(document.querySelector('.head')).maskImage.match(/([\\d.]+)%\\s+([\\d.]+)%\\s+at\\s+([\\d.]+)%\\s+([\\d.]+)%/);
+    if (!m) return { error: 'head mask oval not found in computed style' };
+    const [rxp, ryp, cxp, cyp] = m.slice(1).map((v) => Number(v) / 100);
     const img = (src) => new Promise((ok) => { const i = new Image(); i.onload = () => ok(i); i.src = src; });
     const [a, z] = await Promise.all([img(${JSON.stringify(atRest)}), img(${JSON.stringify(midSniff)})]);
     const px = (i) => { const c = document.createElement('canvas'); c.width = i.width; c.height = i.height; const g = c.getContext('2d'); g.drawImage(i, 0, 0); return g.getImageData(0, 0, i.width, i.height).data; };
     const A = px(a), Z = px(z), W = a.width;
-    const cx = r.x + r.width * 0.525, cy = r.y + r.height * 0.27, rx = r.width * 0.32, ry = r.height * 0.26;
+    const cx = r.x + r.width * cxp, cy = r.y + r.height * cyp, rx = r.width * rxp, ry = r.height * ryp;
     let outsideChanged = 0, insideChanged = 0, inside = 0;
     for (let y = Math.ceil(r.y); y < Math.floor(r.bottom); y++) for (let x = Math.ceil(r.x); x < Math.floor(r.right); x++) {
       const k = (y * W + x) * 4;
@@ -103,16 +123,43 @@ try {
       const e = ((x + 0.5 - cx) / rx) ** 2 + ((y + 0.5 - cy) / ry) ** 2;
       if (e > 1.02) { if (changed) outsideChanged++; } else { inside++; if (changed) insideChanged++; }
     }
-    return { outsideChanged, insideChangedRatio: +(insideChanged / inside).toFixed(3) };
+    return { oval: m[0], rxp, ryp, cxp, cyp, outsideChanged, insideChangedRatio: +(insideChanged / inside).toFixed(3) };
   })()`);
-  check('only the head changes during the sniff (pixels changed outside head oval = 0)', diff.outsideChanged === 0, diff);
+  check('only the head changes during the sniff (pixels changed outside the CSS mask oval = 0)', diff.outsideChanged === 0, diff);
   check('the sniff head is visible (>80% of head oval pixels changed)', diff.insideChangedRatio > 0.8, diff);
+
+  if (args['update-reference']) {
+    await mkdir(new URL('../reference/', import.meta.url).pathname, { recursive: true });
+    await writeFile(REFERENCE, Buffer.from(frameData, 'base64'));
+    console.log(`reference updated: ${REFERENCE}`);
+  }
+  const reference = (await readFile(REFERENCE).catch(() => null))?.toString('base64');
+  const match = reference && await b.evaluate(`(async () => {
+    const img = (src) => new Promise((ok, fail) => { const i = new Image(); i.onload = () => ok(i); i.onerror = fail; i.src = src; });
+    const [ref, got] = await Promise.all([img('data:image/png;base64,${reference}'), img('data:image/png;base64,${frameData}')]);
+    if (ref.width !== got.width || ref.height !== got.height) return { sizeMismatch: [ref.width, ref.height, got.width, got.height] };
+    const px = (i) => { const c = document.createElement('canvas'); c.width = i.width; c.height = i.height; const g = c.getContext('2d'); g.drawImage(i, 0, 0); return g.getImageData(0, 0, i.width, i.height).data; };
+    const R = px(ref), G = px(got), W = ref.width, H = ref.height;
+    const o = ${JSON.stringify({ rxp: diff.rxp, ryp: diff.ryp, cxp: diff.cxp, cyp: diff.cyp })};
+    let sum = 0, far = 0, n = 0;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      if (((x + 0.5 - W * o.cxp) / (W * o.rxp)) ** 2 + ((y + 0.5 - H * o.cyp) / (H * o.ryp)) ** 2 > 1) continue;
+      const k = (y * W + x) * 4;
+      const d = (Math.abs(R[k] - G[k]) + Math.abs(R[k + 1] - G[k + 1]) + Math.abs(R[k + 2] - G[k + 2])) / 3;
+      sum += d; n++; if (d > 48) far++;
+    }
+    return { meanDiff: +(sum / n).toFixed(2), farPixels: +(far / n).toFixed(4) };
+  })()`);
+  check('the sniff head matches the approved reference inside the oval (mean diff < 4, <2% pixels far off)', !!match && !match.sizeMismatch && match.meanDiff < 4 && match.farPixels < 0.02, match ?? 'no reference image; run once with --update-reference after approving mid-sniff.png');
 
   await load(b);
   const before = await counts(b);
+  const meowsBefore = await b.evaluate('window.__meowStarts');
   for (let i = 0; i < 5; i++) { await click(b); await sleep(50); }
   await sleep(500);
   const after = await counts(b);
+  const meows = (await b.evaluate('window.__meowStarts')) - meowsBefore;
+  check('each of 5 clicks starts one meow', meows === 5, { meows });
   check('5 clicks add 5 to the session count', after.session === before.session + 5, { before, after });
   check('5 clicks add at least 5 to the all-time count', after.global >= before.global + 5, { before, after });
   await load(b);
