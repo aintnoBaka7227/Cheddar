@@ -42,11 +42,11 @@ The driver depends on these page hooks. Keep them when changing the markup:
 - `button.cheddar` is the cat; `button.cheddar img.base` is the normal photo; `.head` is the sniff layer.
 - `#session-count` and `#global-count` hold bare digits.
 - `dataset.cheddarReady = 'true'` on `<html>` once handlers are live and the first counts loaded.
-- The sniff is a CSS animation, so `document.getAnimations()` can pause it mid-sniff.
+- The sniff runs as Web Animations on `.head` (opacity) and `.head img` (transform). Holding the press freezes it at the peak, so the driver screenshots the peak by holding the mouse down.
 
 ## Evidence
 
-The `--out` directory gets `at-rest.png`, `mid-sniff.png`, `after-clicks.png`, and `results.json`. A proof shows both screenshots plus the check lines. Read the screenshots yourself: the checks measure pixels and geometry, and a broken page once passed every pixel check before the frame-fit check existed.
+The `--out` directory gets `at-rest.png`, `held-sniff.png`, `held-matte.png` (the head cut-out in white), `after-clicks.png`, and `results.json`. A proof shows both screenshots plus the check lines. Read the screenshots yourself: the checks measure pixels and geometry, and a broken page once passed every pixel check before the frame-fit check existed.
 
 What each check proves is in the feature files. The sniff is proven by a real mouse press through CDP, not by adding the CSS class. Audio is proven by decoding the real file in the page; headless Chrome cannot prove you heard it.
 

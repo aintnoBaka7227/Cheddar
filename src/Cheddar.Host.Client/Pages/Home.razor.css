@@ -44,22 +44,15 @@ h1 {
     inset: 0;
     pointer-events: none;
     opacity: 0;
-    -webkit-mask-image: radial-gradient(ellipse 33% 24% at 52.5% 29.5%, #000 85%, transparent 100%);
-    mask-image: radial-gradient(ellipse 33% 24% at 52.5% 29.5%, #000 85%, transparent 100%);
 }
 
 .head img {
-    transform-origin: 53.3% 31.25%;
-    transform: translate(-0.8%, -4.25%) scale(0.8);
-}
-
-.head.sniffing {
-    animation: sniff 220ms steps(1, end);
-}
-
-@keyframes sniff {
-    0% { opacity: 1; }
-    100% { opacity: 0; }
+    -webkit-mask-image: url("/img/sniff-head-mask.svg");
+    mask-image: url("/img/sniff-head-mask.svg");
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
+    transform-origin: 53.33% 31.25%;
+    transform: translate(-0.8%, -4.25%) scale(0.6);
 }
 
 .counters {
