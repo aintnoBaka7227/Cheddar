@@ -12,11 +12,9 @@ All assets live in `public/`:
 
 ## Behavior
 
-On each click, three things happen at the same moment:
-
-1. **Sniff.** Cheddar's head moves from the normal pose to the sniff pose and back, very quickly. Only the head moves. The body, paws, and background must not change. This is critical.
-2. **Meow.** The meow sound plays.
-3. **Count.** Both counters go up by one.
+1. **Press.** Cheddar's head reaches toward the viewer, from the normal pose into the sniff pose, with a slight springy overshoot. The meow plays at the same moment, with no silence before it. Only the head moves. The body, paws, and background must not change, and no part of the normal-pose head (such as an ear) may show in the sniff pose. This is critical.
+2. **Hold.** While the press is held, Cheddar stays frozen in the sniff pose. The counters do not change.
+3. **Release.** The head settles back to the normal pose and both counters go up by one. A quick click is a short hold, so it shows the full sniff. Releasing away from Cheddar, or a touch that turns into a scroll, cancels without counting.
 
 ## Counters
 
