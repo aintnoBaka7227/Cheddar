@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Cheddar.Host.Client/Cheddar.Host.Client.csproj" />
+    <Project Path="src/Cheddar.Host/Cheddar.Host.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/" />
+  <Folder Name="/src/Modules/Counting/">
+    <Project Path="src/Modules/Counting/Cheddar.Counting/Cheddar.Counting.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Cheddar.Counting.Tests/Cheddar.Counting.Tests.csproj" />
+  </Folder>
+</Solution>
