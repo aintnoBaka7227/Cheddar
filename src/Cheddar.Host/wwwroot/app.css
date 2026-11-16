@@ -1,0 +1,25 @@
+:root {
+    color-scheme: light dark;
+    --bg: #fff8ec;
+    --fg: #3a2a14;
+    --muted: #7a6648;
+    --card: #ffe9b8;
+    --ring: #e0a100;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #17130c;
+        --fg: #f5ead2;
+        --muted: #b3a283;
+        --card: #2a2314;
+        --ring: #f2b705;
+    }
+}
+
+html, body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
