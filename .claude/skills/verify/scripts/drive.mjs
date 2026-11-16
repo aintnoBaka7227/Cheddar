@@ -53,6 +53,14 @@ async function openBrowser(profile) {
     window.__meowStarts = 0;
     const start = AudioBufferSourceNode.prototype.start;
     AudioBufferSourceNode.prototype.start = function (...a) { window.__meowStarts++; return start.apply(this, a); };
+    const connect = AudioNode.prototype.connect;
+    AudioNode.prototype.connect = function (target, ...rest) {
+      if (target instanceof AudioDestinationNode) {
+        if (!window.__speakerTap) { window.__speakerTap = this.context.createAnalyser(); window.__speakerTap.fftSize = 2048; }
+        connect.call(this, window.__speakerTap);
+      }
+      return connect.call(this, target, ...rest);
+    };
   ` });
   await send('Emulation.setDeviceMetricsOverride', { width: 480, height: 860, deviceScaleFactor: 1, mobile: false });
   // Browser.close quits Chrome the way a user does, so it writes persistent cookies to the
@@ -170,6 +178,21 @@ try {
     return { meanDiff: +(sum / n).toFixed(2), farPixels: +(far / n).toFixed(4) };
   })()`);
   check('the sniff head matches the approved reference inside the oval (mean diff < 4, <2% pixels far off)', !!match && !match.sizeMismatch && match.meanDiff < 4 && match.farPixels < 0.02, match ?? 'no reference image; run once with --update-reference after approving mid-sniff.png');
+
+  await load(b);
+  await click(b);
+  const heard = await b.evaluate(`new Promise((done) => {
+    const tap = window.__speakerTap, buf = new Float32Array(2048), t0 = performance.now();
+    let peak = 0, firstLoudMs = null;
+    (function sample() {
+      const now = performance.now() - t0;
+      if (tap) { tap.getFloatTimeDomainData(buf); for (const v of buf) peak = Math.max(peak, Math.abs(v)); }
+      if (firstLoudMs === null && peak > 0.2) firstLoudMs = Math.round(now);
+      if (now < 600) setTimeout(sample, 10); else done({ tapped: !!tap, peak: +peak.toFixed(3), firstLoudMs });
+    })();
+  })`);
+  check('the meow reaches the speakers loudly within 300ms of a click (peak > 0.2 of full scale)', heard.tapped && heard.firstLoudMs !== null && heard.firstLoudMs <= 300, heard);
+  await sleep(4000);
 
   await load(b);
   const before = await counts(b);
