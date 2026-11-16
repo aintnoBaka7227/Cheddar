@@ -4,3 +4,4 @@ obj/
 App_Data/
 .audit/*.todo.md
 .claude/worktrees/
+.verify-evidence/
