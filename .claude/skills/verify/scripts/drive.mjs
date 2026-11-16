@@ -210,6 +210,72 @@ try {
   const awayHead = await headState();
   check('releasing away from Cheddar cancels without counting', afterAway.session === beforeAway.session && afterAway.global === beforeAway.global && awayHead.opacity === 0, { beforeAway, afterAway, awayHead });
 
+  const record = (ms) => b.evaluate(`(() => {
+    window.__frames = [];
+    const head = document.querySelector('.head'), img = head.querySelector('img'), t0 = performance.now();
+    (function tick() {
+      const m = getComputedStyle(img).transform.match(/matrix\\(([-\\d.e]+)/);
+      window.__frames.push({ t: Math.round(performance.now() - t0), opacity: +Number(getComputedStyle(head).opacity).toFixed(2), scale: m ? +Number(m[1]).toFixed(3) : 1 });
+      if (performance.now() - t0 < ${ms}) requestAnimationFrame(tick);
+    })();
+  })()`);
+  const frames = () => b.evaluate('window.__frames');
+  const pops = (fs) => fs.filter((f, k) => k > 0 && fs[k - 1].opacity <= 0.3 && f.opacity >= 0.95 && f.scale >= 1).length;
+
+  await record(500);
+  await mouse('mousePressed');
+  await sleep(550);
+  const reachFrames = await frames();
+  await mouse('mouseReleased');
+  await sleep(500);
+  const firstPeak = reachFrames.findIndex((f) => f.scale >= 1.04 && f.opacity === 1);
+  const between = reachFrames.slice(0, Math.max(firstPeak, 0)).filter((f) => f.opacity > 0.1 && f.scale > 0.62 && f.scale < 1.0);
+  check('the head visibly reaches toward the viewer (in-between sizes shown before the peak)', firstPeak > 0 && between.length >= 2, { framesBeforePeak: firstPeak, inBetweenFrames: between.length, sample: between.slice(0, 3) });
+
+  const beforeMash = await counts(b);
+  await record(8 * 240 + 600);
+  for (let k = 0; k < 8; k++) { await mouse('mousePressed'); await mouse('mouseReleased'); await sleep(240); }
+  await sleep(700);
+  const mash = await frames();
+  const afterMash = await counts(b);
+  const mashEnd = await headState();
+  check('8 quick taps at about 4 per second never pop the head in at full size', pops(mash) === 0, { pops: pops(mash) });
+  check('8 quick taps count 8 and end at rest', afterMash.session === beforeMash.session + 8 && mashEnd.opacity === 0 && mashEnd.running === 0, { beforeMash, afterMash, mashEnd });
+
+  const beforeTouch = await counts(b);
+  await b.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: center.x, y: center.y }] });
+  await sleep(250);
+  await b.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
+  await sleep(600);
+  const afterTouch = await counts(b);
+  const touchHead = await headState();
+  check('a cancelled touch (one that becomes a scroll) settles without counting', afterTouch.session === beforeTouch.session && touchHead.opacity === 0, { beforeTouch, afterTouch, touchHead });
+
+  const enter = { key: 'Enter', code: 'Enter', text: '\r', windowsVirtualKeyCode: 13 };
+  await b.evaluate(`document.querySelector('${SEL.cat}').focus()`);
+  const beforeBlur = await counts(b);
+  await b.send('Input.dispatchKeyEvent', { type: 'keyDown', ...enter });
+  await sleep(250);
+  await b.evaluate(`document.querySelector('${SEL.cat}').blur()`);
+  await b.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+  await sleep(600);
+  const afterBlur = await counts(b);
+  const blurHead = await headState();
+  check('losing focus while Enter is held cancels without counting', afterBlur.session === beforeBlur.session && blurHead.opacity === 0, { beforeBlur, afterBlur, blurHead });
+
+  await b.evaluate(`document.querySelector('${SEL.cat}').focus()`);
+  const beforeStuck = await counts(b);
+  await b.send('Input.dispatchKeyEvent', { type: 'keyDown', ...enter });
+  await sleep(250);
+  await mouse('mousePressed');
+  await mouse('mouseReleased');
+  await sleep(600);
+  const afterStuck = await counts(b);
+  await b.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+  await sleep(300);
+  const afterLateKeyUp = await counts(b);
+  check('a key press whose keyup never came does not block the mouse (click still counts once)', afterStuck.session === beforeStuck.session + 1 && afterLateKeyUp.session === afterStuck.session, { beforeStuck, afterStuck, afterLateKeyUp });
+
   await load(b);
   await click(b);
   const heard = await b.evaluate(`new Promise((done) => {

@@ -126,13 +126,16 @@ export async function init() {
 
     // One press at a time: null when idle, otherwise who is holding Cheddar and when the
     // reach (plus its minimum hold) is done. A release counts only if it completes the press.
+    // `latest` is the newest press, held or released; only its settle may touch the head, so a
+    // quick tap's settle never runs over the next tap's reach.
     let press = null;
+    let latest = null;
 
     function pressStart(by) {
         stopSniff(head, headImg);
         meow();
         const reached = reach(head, headImg).catch(() => {});
-        press = { by, reached };
+        press = latest = { by, reached };
     }
 
     async function pressEnd(completed) {
@@ -141,13 +144,13 @@ export async function init() {
         press = null;
         if (completed) count();
         await ended.reached;
-        if (press) return;
+        if (latest !== ended) return;
         try {
             await settle(head, headImg);
         } catch {
             return;
         }
-        if (!press) stopSniff(head, headImg);
+        if (latest === ended) stopSniff(head, headImg);
     }
 
     function overButton(e) {
@@ -156,7 +159,11 @@ export async function init() {
     }
 
     button.addEventListener('pointerdown', e => {
-        if (e.button !== 0 || press) return;
+        if (e.button !== 0) return;
+        // A key press whose keyup never arrived (e.g. swallowed by a system shortcut) must not
+        // block the mouse forever.
+        if (press?.by.key) pressEnd(false);
+        if (press) return;
         button.setPointerCapture(e.pointerId);
         pressStart({ pointerId: e.pointerId });
     });
