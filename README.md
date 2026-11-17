@@ -36,6 +36,7 @@ A single working web page served by a local dev server.
 - Start the dev server with `dotnet run` (or `dotnet watch` for hot reload).
 - Front end: Blazor. 
 - Architecture: modular monolith
+
 ## Run locally
 
 ```bash
@@ -62,5 +63,8 @@ Nothing deploys until you run step 2.
 
 ### One-time setup
 
-- Render: create a web service from this GitHub repo with the Docker runtime and the Free instance type. Turn Auto-Deploy off and set the health check path to `/healthz`. Set the env var `Counting__Redis` to your Upstash URL. Copy the service's deploy hook URL.
+- Render: create a web service from this GitHub repo, branch `main`, with the Docker runtime and the Free instance type. Turn Auto-Deploy off and set the health check path to `/healthz`. Set the env var `Counting__Redis` to your Upstash URL. Copy the service's deploy hook URL. Treat it as a secret: anyone with it can deploy.
+- Upstash: keep eviction off, so the count is never dropped. Upstash archives a free database after 30 or more days with no traffic. Restoring creates a new database with a new URL, so update `Counting__Redis` on Render.
 - GitHub: add the secret `RENDER_DEPLOY_HOOK_URL` (the deploy hook URL) and the variable `PRODUCTION_URL` (for example `https://cheddar.onrender.com`, no trailing slash).
+
+The deploy fails unless `/healthz` reports `"counter": "redis"`. That catches a missing or misnamed `Counting__Redis`, which would otherwise fall back to a file the container cannot write.
