@@ -1,0 +1,9 @@
+**/bin/
+**/obj/
+.git/
+.audit/
+.claude/
+.verify-evidence/
+**/App_Data/
+.github/
+tests/

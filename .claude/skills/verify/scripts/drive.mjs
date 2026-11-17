@@ -21,7 +21,10 @@ const results = [];
 const check = (name, ok, detail) => { results.push({ name, ok, detail }); console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${detail === undefined ? '' : ` ${JSON.stringify(detail)}`}`); };
 
 async function openBrowser(profile) {
-  const proc = spawn(CHROME, ['--headless=new', `--remote-debugging-port=${args.port}`, `--user-data-dir=${profile}`, '--autoplay-policy=no-user-gesture-required', 'about:blank'], { stdio: 'ignore' });
+  const chromeArgs = ['--headless=new', `--remote-debugging-port=${args.port}`, `--user-data-dir=${profile}`, '--autoplay-policy=no-user-gesture-required', 'about:blank'];
+  // CI runners start Chrome as root in a container, where its sandbox cannot start.
+  if (process.env.CI) chromeArgs.unshift('--no-sandbox');
+  const proc = spawn(CHROME, chromeArgs, { stdio: 'ignore' });
   let targets;
   for (let i = 0; i < 100 && !targets; i++) {
     try { targets = await (await fetch(`http://127.0.0.1:${args.port}/json`)).json(); } catch { await sleep(100); }

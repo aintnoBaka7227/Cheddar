@@ -5,7 +5,7 @@ description: Launch the Cheddar web app (ASP.NET Core host + Blazor WebAssembly 
 
 # Verify Cheddar
 
-Cheddar is one web page. A user clicks the cat; the sniff head flashes over the normal photo for 220ms, a meow plays, and two counters go up. The proof is `scripts/drive.mjs`, a dependency-free Node script that drives system Google Chrome over the DevTools protocol.
+Cheddar is one web page. A user clicks the cat; pressing reaches the head toward the viewer into the sniff pose and plays a meow, holding freezes it there, and releasing settles it back and counts once on both counters. The proof is `scripts/drive.mjs`, a dependency-free Node script that drives system Google Chrome over the DevTools protocol.
 
 ## Launch
 
@@ -17,7 +17,16 @@ dotnet run --project src/Cheddar.Host
 
 Run it as a background process and note its PID. Ready means the log prints `Now listening on: http://localhost:5080`. The first build takes up to a minute. The page itself is interactive only after the WebAssembly runtime loads; the driver waits for `document.documentElement.dataset.cheddarReady === 'true'`.
 
-Data lives in `src/Cheddar.Host/App_Data/global-count.json` (gitignored). Verification clicks add to this local all-time count. Delete that file before launch for a count that starts at 0. Never run two hosts from one checkout: each caches the count in memory and they would overwrite each other's file.
+By default the all-time count lives in `src/Cheddar.Host/App_Data/global-count.json` (gitignored). Verification clicks add to this local count. Delete that file before launch for a count that starts at 0. Never run two hosts from one checkout in file mode: each caches the count in memory and they would overwrite each other's file.
+
+To run against Redis instead, as production does:
+
+```bash
+docker run -d --rm -p 6379:6379 --name cheddar-redis redis:7-alpine
+Counting__Redis=localhost:6379 dotnet run --project src/Cheddar.Host
+```
+
+`GET /healthz` reports `"counter":"redis"` or `"file"`. Stop Redis with `docker rm -f cheddar-redis`.
 
 ## Doctor
 
@@ -35,7 +44,7 @@ If port 5080 belongs to a process you did not start, stop and report it. Do not 
 node .claude/skills/verify/scripts/drive.mjs --url http://localhost:5080/ --out .verify-evidence
 ```
 
-It runs every journey in [features/](features/README.md), prints one `PASS`/`FAIL` line per check, and exits 1 if any check fails. Options: `--url`, `--out`, `--port` (DevTools port, default 9333). Set `CHROME` to use a different Chrome binary.
+It runs every journey in [features/](features/README.md), prints one `PASS`/`FAIL` line per check, and exits 1 if any check fails. Options: `--url`, `--out`, `--port` (DevTools port, default 9333). Set `CHROME` to use a different Chrome binary. With `CI` set, Chrome gets `--no-sandbox`.
 
 The driver depends on these page hooks. Keep them when changing the markup:
 
