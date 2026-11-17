@@ -20,6 +20,8 @@ The driver presses the mouse and holds it for 600ms. It checks that the head is 
 
 ## Gotchas
 
+- Holding Cheddar once highlighted the "Cheddar" heading in the user's browser while headless Chrome showed nothing. The page sets `user-select` and `-webkit-user-select` (Safari needs the prefix) to none on the whole page, blocks `selectstart` during a press, and blocks the long-press context menu on the cat. The driver checks those protections directly, because Chrome alone does not reproduce the highlight.
+
 - The ear points are in the normal photo's 1200x1600 pixel space. They sample up to the left ear tip, because a smaller peak covers the middle of the ear but not its tip.
 - Changing the mask, the scales, or the photo needs a new reference. Approve `held-sniff.png` by eye, then rerun with `--update-reference`.
 - Images in the button need `inset: 0`. Without it they sit at their static position and the frame shows a cropped corner. The frame-fit check catches this.
