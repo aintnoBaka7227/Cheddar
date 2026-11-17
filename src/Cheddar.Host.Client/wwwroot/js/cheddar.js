@@ -164,9 +164,14 @@ export async function init() {
         // block the mouse forever.
         if (press?.by.key) pressEnd(false);
         if (press) return;
+        getSelection()?.removeAllRanges();
         button.setPointerCapture(e.pointerId);
         pressStart({ pointerId: e.pointerId });
     });
+    // While Cheddar is held, a drifting pointer must not select the heading or counters, and a
+    // long press must not open a context menu, which would cancel the hold on touch screens.
+    document.addEventListener('selectstart', e => { if (press) e.preventDefault(); });
+    button.addEventListener('contextmenu', e => e.preventDefault());
     button.addEventListener('pointerup', e => {
         if (press?.by.pointerId === e.pointerId) pressEnd(overButton(e));
     });

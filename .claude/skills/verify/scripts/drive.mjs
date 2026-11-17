@@ -213,6 +213,22 @@ try {
   const awayHead = await headState();
   check('releasing away from Cheddar cancels without counting', afterAway.session === beforeAway.session && afterAway.global === beforeAway.global && awayHead.opacity === 0, { beforeAway, afterAway, awayHead });
 
+  const unselectable = await b.evaluate(`(() => {
+    const css = (sel) => { const s = getComputedStyle(document.querySelector(sel)); return [s.userSelect, s.webkitUserSelect]; };
+    return { heading: css('h1'), session: css('${SEL.session}'), cat: css('${SEL.cat}') };
+  })()`);
+  check('the heading, counters and cat cannot be text-selected (user-select none, incl. -webkit-)', Object.values(unselectable).flat().every((v) => v === 'none'), unselectable);
+  await mouse('mousePressed');
+  await sleep(200);
+  const duringPress = await b.evaluate(`(() => ({
+    selectstartBlocked: !document.querySelector('h1').dispatchEvent(new Event('selectstart', { bubbles: true, cancelable: true })),
+    contextMenuBlocked: !document.querySelector('${SEL.cat}').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })),
+    selected: getSelection().toString(),
+  }))()`);
+  await mouse('mouseReleased');
+  await sleep(500);
+  check('while Cheddar is held, text selection and the long-press menu are blocked', duringPress.selectstartBlocked && duringPress.contextMenuBlocked && duringPress.selected === '', duringPress);
+
   const record = (ms) => b.evaluate(`(() => {
     window.__frames = [];
     const head = document.querySelector('.head'), img = head.querySelector('img'), t0 = performance.now();
