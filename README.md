@@ -36,3 +36,31 @@ A single working web page served by a local dev server.
 - Start the dev server with `dotnet run` (or `dotnet watch` for hot reload).
 - Front end: Blazor. 
 - Architecture: modular monolith
+## Run locally
+
+```bash
+dotnet run --project src/Cheddar.Host
+```
+
+The all-time count is stored in `src/Cheddar.Host/App_Data/global-count.json`. To use Redis instead, as production does:
+
+```bash
+docker run -d --rm -p 6379:6379 --name cheddar-redis redis:7-alpine
+Counting__Redis=localhost:6379 dotnet run --project src/Cheddar.Host
+```
+
+`Counting__Redis` accepts an Upstash URL (`rediss://default:PASSWORD@HOST:PORT`) or a StackExchange.Redis connection string. `GET /healthz` reports which store is active.
+
+## Release and deploy
+
+Releases are SemVer tags `vX.Y.Z` on `main`. CI runs the build, the tests and the browser driver on every pull request.
+
+1. Push a tag: `git tag v1.0.0 && git push origin v1.0.0`. CI runs again, then a GitHub Release is created.
+2. Deploy that exact commit to Render: `gh workflow run deploy.yml -f tag=v1.0.0`. The workflow waits until `/healthz` reports the tag's commit, then smoke-tests the site.
+
+Nothing deploys until you run step 2.
+
+### One-time setup
+
+- Render: create a web service from this GitHub repo with the Docker runtime and the Free instance type. Turn Auto-Deploy off and set the health check path to `/healthz`. Set the env var `Counting__Redis` to your Upstash URL. Copy the service's deploy hook URL.
+- GitHub: add the secret `RENDER_DEPLOY_HOOK_URL` (the deploy hook URL) and the variable `PRODUCTION_URL` (for example `https://cheddar.onrender.com`, no trailing slash).
