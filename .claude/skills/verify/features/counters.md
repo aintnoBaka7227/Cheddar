@@ -3,7 +3,7 @@
 ## Sub-features
 
 - Session count. A browser-session cookie `cheddar_session` with no expiry. Survives reload and tab close, resets when the browser quits.
-- All-time count. One shared total in `App_Data/global-count.json`, served by `GET /api/counts/global` and `POST /api/counts/global/increment`.
+- All-time count. One shared total, served by `GET /api/counts/global` and `POST /api/counts/global/increment`. It lives in Redis (key `cheddar:global-count`) when `Counting:Redis` is set, else in `App_Data/global-count.json`.
 
 ## How to get to it (user POV)
 
