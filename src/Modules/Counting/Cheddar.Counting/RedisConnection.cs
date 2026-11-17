@@ -25,9 +25,12 @@ public static class RedisConnection
     private static ConfigurationOptions FromUrl(string url)
     {
         var uri = new Uri(url);
+        // Upstash accepts only TLS, yet its own redis-cli snippet shows a redis:// URL, so a
+        // copied one-s URL would silently time out on every call.
         var options = new ConfigurationOptions
         {
-            Ssl = uri.Scheme.Equals("rediss", StringComparison.OrdinalIgnoreCase),
+            Ssl = uri.Scheme.Equals("rediss", StringComparison.OrdinalIgnoreCase)
+                || uri.Host.EndsWith(".upstash.io", StringComparison.OrdinalIgnoreCase),
         };
         options.EndPoints.Add(uri.Host, uri.Port > 0 ? uri.Port : 6379);
         if (uri.UserInfo.Length > 0)

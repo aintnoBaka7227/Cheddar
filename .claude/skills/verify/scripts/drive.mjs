@@ -341,6 +341,15 @@ try {
   const server = await b.evaluate(`fetch('/api/counts/global').then((r) => r.json()).then((j) => j.count)`);
   check('a failed increment shows the server total, not a phantom click', shownAfterFail === server, { shown: shownAfterFail, server });
 
+  await b.send('Fetch.enable', { patterns: [{ urlPattern: '*/api/counts/global' }] });
+  b.on('Fetch.requestPaused', ({ requestId }) => b.send('Fetch.failRequest', { requestId, errorReason: 'Failed' }));
+  await b.send('Page.navigate', { url: args.url });
+  for (let i = 0; i < 100 && !(await b.evaluate(`document.documentElement.dataset.cheddarReady === 'true'`).catch(() => false)); i++) await sleep(100);
+  const unknownShown = await b.evaluate(`document.querySelector('${SEL.global}').textContent.trim()`);
+  await b.send('Fetch.disable');
+  check('when the all-time count cannot load, the page shows "–", never 0', unknownShown === '–', { shown: unknownShown });
+  await load(b);
+
   const meow = await b.evaluate(`fetch('/assets/Augustine%20St.m4a').then((r) => r.arrayBuffer()).then((x) => new AudioContext().decodeAudioData(x)).then((a) => a.duration)`);
   check('meow audio decodes', meow > 0, { seconds: +meow.toFixed(2) });
   await shot(b, 'after-clicks');

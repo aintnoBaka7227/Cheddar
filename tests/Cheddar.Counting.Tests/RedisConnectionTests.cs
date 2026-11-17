@@ -24,6 +24,15 @@ public sealed class RedisConnectionTests
     }
 
     [Fact]
+    public void Upstash_host_uses_tls_even_from_a_one_s_redis_url()
+    {
+        var options = RedisConnection.Parse("redis://default:pw@eager-cat-1234.upstash.io:6379");
+
+        Assert.True(options.Ssl);
+        AssertEndpoint(options, "eager-cat-1234.upstash.io", 6379);
+    }
+
+    [Fact]
     public void Url_password_is_percent_decoded()
     {
         Assert.Equal("p@ss/word", RedisConnection.Parse("rediss://default:p%40ss%2Fword@host:6379").Password);

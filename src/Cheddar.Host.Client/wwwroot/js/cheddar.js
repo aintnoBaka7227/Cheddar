@@ -7,7 +7,8 @@ let meowBuffer;
 let meowStart = 0;
 let meowGain = 1;
 let sessionCount = 0;
-let globalCount = 0;
+// null until the server has answered: the page never shows a total it does not know.
+let globalCount = null;
 
 function readSessionCount() {
     const match = document.cookie.split('; ').find(c => c.startsWith(SESSION_COOKIE + '='));
@@ -88,7 +89,10 @@ async function loadMeow() {
 
 async function loadGlobalCount() {
     const res = await fetch('/api/counts/global');
-    return (await res.json()).count;
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const { count } = await res.json();
+    if (!Number.isSafeInteger(count)) throw new Error('No count in response');
+    return count;
 }
 
 export async function init() {
@@ -96,6 +100,7 @@ export async function init() {
     const button = document.querySelector('button.cheddar');
     const sessionEl = document.getElementById('session-count');
     const globalEl = document.getElementById('global-count');
+    const showGlobal = () => { globalEl.textContent = globalCount === null ? '–' : String(globalCount); };
 
     sessionCount = readSessionCount();
     sessionEl.textContent = String(sessionCount);
@@ -106,22 +111,17 @@ export async function init() {
         sessionCount = readSessionCount() + 1;
         sessionEl.textContent = String(sessionCount);
         writeSessionCount(sessionCount);
-        globalCount += 1;
-        globalEl.textContent = String(globalCount);
+        if (globalCount !== null) globalCount += 1;
+        showGlobal();
         try {
             const res = await fetch('/api/counts/global/increment', { method: 'POST' });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            globalCount = Math.max(globalCount, (await res.json()).count);
-            globalEl.textContent = String(globalCount);
+            globalCount = Math.max(globalCount ?? 0, (await res.json()).count);
         } catch (e) {
             console.warn('Increment failed', e);
-            try {
-                globalCount = await loadGlobalCount();
-            } catch {
-                globalCount -= 1;
-            }
-            globalEl.textContent = String(globalCount);
+            globalCount = await loadGlobalCount().catch(() => null);
         }
+        showGlobal();
     }
 
     // One press at a time: null when idle, otherwise who is holding Cheddar and when the
@@ -208,9 +208,12 @@ export async function init() {
     await Promise.all([
         loadMeow(),
         loadGlobalCount().then(n => {
-            globalCount = Math.max(globalCount, n);
-            globalEl.textContent = String(globalCount);
-        }, e => console.warn('Global count unavailable', e)),
+            globalCount = Math.max(globalCount ?? 0, n);
+            showGlobal();
+        }, e => {
+            console.warn('Global count unavailable', e);
+            showGlobal();
+        }),
     ]);
     document.documentElement.dataset.cheddarReady = 'true';
 }
