@@ -17,6 +17,7 @@ Five clicks must add exactly 5 to the session count and at least 5 to the all-ti
 - Holding Enter or Space (one press plus three auto-repeats) counts once each.
 - A bare `element.click()` (detail 0), as assistive tech sends, counts once.
 - With the increment POST failed through the DevTools Fetch domain, the shown all-time count must equal the server's count.
+- With the initial count GET failed, the all-time count must show "–", never 0. A 0 there once made a broken Redis connection look like a reset.
 - Chrome is quit with `Browser.close` and relaunched on the same profile. The session count must be 0 and the all-time count at least the previous value. A graceful quit matters. A killed Chrome loses persistent cookies too, which would hide a cookie that wrongly never expires.
 
 ## Gotchas

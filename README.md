@@ -50,7 +50,7 @@ docker run -d --rm -p 6379:6379 --name cheddar-redis redis:7-alpine
 Counting__Redis=localhost:6379 dotnet run --project src/Cheddar.Host
 ```
 
-`Counting__Redis` accepts an Upstash URL (`rediss://default:PASSWORD@HOST:PORT`) or a StackExchange.Redis connection string. `GET /healthz` reports which store is active.
+`Counting__Redis` accepts an Upstash URL (`rediss://default:PASSWORD@HOST:PORT`; TLS is always used for `*.upstash.io`, even from a `redis://` URL) or a StackExchange.Redis connection string. `GET /healthz` reports which store is active.
 
 ## Release and deploy
 
